@@ -8,7 +8,7 @@ allowed-tools: Read, Write, Bash, Glob, Grep
 
 ## 使用定位
 
-这个 skill 用于把视频内容转成适合公考政治理论复习的学习材料。处理视频时，不只做普通摘要，而要围绕“政治理论考点、时间顺序、事件链条、政策背景、关键词和可复习结构”进行整理。
+这个 skill 用于把视频内容整理成适合公考政治理论复习的学习材料。处理视频时，不只做普通摘要，而要围绕“政治理论考点、时间顺序、事件链条、政策背景、关键词和可复习结构”进行整理。
 
 适用内容包括：
 - 公考政治理论课程视频
@@ -29,7 +29,14 @@ allowed-tools: Read, Write, Bash, Glob, Grep
 python3 {baseDir}/scripts/download.py --url "VIDEO_URL" --output "{baseDir}/output"
 ```
 
-B站视频如需登录字幕，可尝试浏览器 cookies：
+B站视频如需登录字幕或会员/购买权限，优先使用浏览器登录态：
+
+```bash
+python3 {baseDir}/scripts/bilibili_login_and_export_cookies.py --output "{baseDir}/output/bilibili-cookies.txt"
+python3 {baseDir}/scripts/download.py --url "VIDEO_URL" --output "{baseDir}/output" --cookies "{baseDir}/output/bilibili-cookies.txt"
+```
+
+如果环境允许直接读取浏览器 cookies，也可以尝试：
 
 ```bash
 python3 {baseDir}/scripts/download.py --url "VIDEO_URL" --output "{baseDir}/output" --cookies-from-browser chrome
@@ -55,6 +62,30 @@ python3 {baseDir}/scripts/transcribe.py --input-dir "{baseDir}/output" --output 
 
 处理政治理论课程时，必须尽量保留时间戳，因为后续要按照“时间-事件-考点”建立事件链。
 
+### 2. B站登录与 cookies 使用
+
+当 B站字幕接口提示需要登录，或者视频本身只有登录/购买用户可看时，按以下顺序处理：
+
+1. 运行登录脚本，它会弹出浏览器窗口到 B站登录页。
+2. 用户在浏览器里完成登录。
+3. 脚本读取当前浏览器中的 B站 cookies，并导出为 Netscape 格式的 `cookies.txt`。
+4. 后续所有下载步骤统一优先使用这个 `cookies.txt`。
+
+登录脚本：
+
+```bash
+python3 {baseDir}/scripts/bilibili_login_and_export_cookies.py --browser chrome --output "{baseDir}/output/bilibili-cookies.txt"
+```
+
+可选浏览器：
+- `chrome`
+- `edge`
+
+注意：
+- 这个脚本依赖 Python 包 `browser-cookie3`。
+- 如果浏览器资料目录被系统权限限制，优先在用户自己的本机终端执行。
+- 如果视频是付费课程，登录账号本身还必须拥有对应观看权限。
+
 ## 输出原则
 
 ### 1. 转成“标题 + note + 内容”的学习结构
@@ -71,9 +102,9 @@ python3 {baseDir}/scripts/transcribe.py --input-dir "{baseDir}/output" --output 
 ```
 
 每个知识块都应包含：
-- **标题**：概括该部分讲什么，尽量使用公考政治理论常见表述。
-- **note**：指出这一部分为什么重要，可能对应什么题型、考点或易错点。
-- **内容**：展开解释背景、概念、事件、意义、影响和记忆线索。
+- `标题`：概括该部分讲什么，尽量使用公考政治理论常见表述。
+- `note`：指出这一部分为什么重要，可能对应什么题型、考点或易错点。
+- `内容`：展开解释背景、概念、事件、意义、影响和记忆线索。
 
 ### 2. 首页可加入相关图片装饰
 
@@ -156,6 +187,11 @@ python3 {baseDir}/scripts/transcribe.py --input-dir "{baseDir}/output" --output 
 - 高频考点表
 
 当内容层级明显、适合复习背诵时，可以使用 Mermaid 绘制思维导图。
+
+思维导图使用原则：
+- 不是每一节都强行画图，但只要内容存在明显层级、阶段划分、事件链条或知识点归类，就应补一张思维导图。
+- 对党史、中特、时政理论、会议精神、制度体系等内容，原则上优先提供思维导图。
+- 思维导图应服务于复习，不做花哨装饰，节点名称尽量简洁，突出主干和重点。
 
 示例：
 
@@ -245,10 +281,40 @@ mindmap
 ## 写作风格
 
 - 语言要像公考政治理论学习资料，正式、清晰、适合复习。
+- 默认采用“老师讲课、带学生梳理知识”的口吻叙述。语言应有引导性和讲解感，例如“这里我们要注意”“这一点在考试中很容易命题”“同学们可以这样理解”，但不要过度口语化。
 - 不要写成机械摘要，也不要保留大量视频口语。
 - 对重要政治理论表述要谨慎，不随意改写规范提法。
 - 对时间、会议、文件、人物、政策名称要尽量准确。
 - 不能确认的事实应标注“待核验”。
+
+## 重点格式
+
+为了让学习材料更适合复习，输出时应主动标记重点内容。
+
+推荐做法：
+- 重点结论使用 `**加粗**`
+- 重点提醒、易错点、常考点可用 HTML 颜色标记，例如 `<span style="color:#c62828">重点</span>`
+- 大段内容之间可使用 `---` 作为横线分隔，帮助分块阅读
+- 如果生成 Word、PPT 或富文本版本，也应保持“重点更醒目”的原则，可用加粗、颜色、下划线或横线分隔实现
+
+格式使用原则：
+- 不要通篇大量上色，避免页面杂乱；只突出真正高频、易错、结论性内容。
+- 同一份材料中，强调样式尽量统一。例如红色主要用于“重点/高频考点”，加粗主要用于“结论/定义”，横线主要用于“模块分隔”。
+- 如果平台不支持颜色显示，至少保留加粗和横线分隔。
+
+## 依赖补充
+
+处理 B站登录 cookies 时，额外建议安装：
+
+```bash
+pip install browser-cookie3
+```
+
+视频下载与字幕处理常用依赖：
+
+```bash
+pip install yt-dlp
+```
 
 ## 保存要求
 
