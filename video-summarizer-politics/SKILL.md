@@ -29,17 +29,11 @@ allowed-tools: Read, Write, Bash, Glob, Grep
 python3 {baseDir}/scripts/download.py --url "VIDEO_URL" --output "{baseDir}/output"
 ```
 
-B站视频如需登录字幕或会员/购买权限，优先使用浏览器登录态：
+B站视频如需登录字幕或购买权限，优先使用浏览器登录态：
 
 ```bash
 python3 {baseDir}/scripts/bilibili_login_and_export_cookies.py --output "{baseDir}/output/bilibili-cookies.txt"
 python3 {baseDir}/scripts/download.py --url "VIDEO_URL" --output "{baseDir}/output" --cookies "{baseDir}/output/bilibili-cookies.txt"
-```
-
-如果环境允许直接读取浏览器 cookies，也可以尝试：
-
-```bash
-python3 {baseDir}/scripts/download.py --url "VIDEO_URL" --output "{baseDir}/output" --cookies-from-browser chrome
 ```
 
 提取字幕文本：
@@ -48,21 +42,55 @@ python3 {baseDir}/scripts/download.py --url "VIDEO_URL" --output "{baseDir}/outp
 python3 {baseDir}/scripts/extract_subtitles.py --input-dir "{baseDir}/output" --output "{baseDir}/output/transcript.txt"
 ```
 
-无字幕时转写音频，并保留时间戳：
+### 2. 无字幕时转写音频
+
+默认优先使用本地 Whisper 模型。只有当用户明确指定远程 API，或本地模型方案不可行时，才改用远程转写。
+
+本地转写：
 
 ```bash
-python3 {baseDir}/scripts/transcribe.py --input-dir "{baseDir}/output" --output "{baseDir}/output/transcript.txt" --timestamps
+python3 {baseDir}/scripts/transcribe_audio.py \
+  --provider local \
+  --input "{baseDir}/output/audio.m4a" \
+  --output "{baseDir}/output/transcript.txt" \
+  --local-model base \
+  --local-model-dir "{baseDir}/output/.models"
 ```
 
-如果支持本地 Whisper，可使用：
+远程转写：
 
 ```bash
-python3 {baseDir}/scripts/transcribe.py --input-dir "{baseDir}/output" --output "{baseDir}/output/transcript.txt" --local --model turbo --timestamps
+python3 {baseDir}/scripts/transcribe_audio.py \
+  --provider remote \
+  --input "{baseDir}/output/audio.m4a" \
+  --output "{baseDir}/output/transcript.txt" \
+  --remote-base-url "https://example.com/v1" \
+  --remote-model "whisper-1"
 ```
 
-处理政治理论课程时，必须尽量保留时间戳，因为后续要按照“时间-事件-考点”建立事件链。
+远程转写时不要把密钥写进脚本或 skill 文件，而应通过环境变量传入：
 
-### 2. B站登录与 cookies 使用
+```bash
+set WHISPER_API_KEY=your_key_here
+```
+
+处理政治理论课程时，必须尽量保留时间信息，因为后续要按照“时间-事件-考点”建立事件链。
+
+### 3. 本地 Whisper 模型要求
+
+这个 skill 默认支持本地 Whisper 模型下载和缓存。使用本地转写时：
+- 优先把模型缓存到工作区内部，例如 `{baseDir}/output/.models`
+- 不要默认写入系统用户目录
+- 模型首次下载较慢，后续可以复用
+- 用户如果不想下载模型，可以明确切换到远程 API 方案
+
+本地转写推荐依赖：
+
+```bash
+pip install faster-whisper av
+```
+
+### 4. B站登录与 cookies 使用
 
 当 B站字幕接口提示需要登录，或者视频本身只有登录/购买用户可看时，按以下顺序处理：
 
@@ -82,9 +110,9 @@ python3 {baseDir}/scripts/bilibili_login_and_export_cookies.py --browser chrome 
 - `edge`
 
 注意：
-- 这个脚本依赖 Python 包 `browser-cookie3`。
-- 如果浏览器资料目录被系统权限限制，优先在用户自己的本机终端执行。
-- 如果视频是付费课程，登录账号本身还必须拥有对应观看权限。
+- 这个脚本依赖 Python 包 `browser-cookie3`
+- 如果浏览器资料目录被系统权限限制，优先在用户自己的本机终端执行
+- 如果视频是付费课程，登录账号本身还必须拥有对应观看权限
 
 ## 输出原则
 
@@ -111,10 +139,10 @@ python3 {baseDir}/scripts/bilibili_login_and_export_cookies.py --browser chrome 
 当用户要求生成 Markdown、Word、PPT 或可视化学习材料时，首页应放一张与主题切合的图片作为装饰。
 
 选图原则：
-- 主题相关，例如人民大会堂、国旗、党史纪念馆、宪法、会议现场、城市治理、基层服务等。
-- 风格正式、克制，适合公考政治理论材料。
-- 不使用与主题无关的抽象装饰图。
-- 如果使用网络图片，应尽量选官方、公开、稳定来源，并在材料中注明来源。
+- 主题相关，例如人民大会堂、国旗、党史纪念馆、宪法、会议现场、城市治理、基层服务等
+- 风格正式、克制，适合公考政治理论材料
+- 不使用与主题无关的抽象装饰图
+- 如果使用网络图片，应尽量选官方、公开、稳定来源，并在材料中注明来源
 
 ### 3. 以时间和事件为主线
 
@@ -155,25 +183,6 @@ python3 {baseDir}/scripts/bilibili_login_and_export_cookies.py --browser chrome 
 - 再补充相关知识点
 - 最后给出适合记忆或做题的提示
 
-推荐结构：
-
-```markdown
-## 回答
-[直接回答用户问题]
-
-## 相关知识点补充
-- 概念：
-- 背景：
-- 重要表述：
-- 易混点：
-- 常见考法：
-
-## 记忆提示
-[用一句话帮助记忆]
-```
-
-如果视频内容与常识或公开资料可能存在冲突，应提示“需核验”，不要把不确定内容写成定论。
-
 ### 5. 支持表格和思维导图
 
 当内容涉及对比、分类、时间节点、会议精神、政策措施、人物事件或易混概念时，优先整理成表格。
@@ -189,103 +198,18 @@ python3 {baseDir}/scripts/bilibili_login_and_export_cookies.py --browser chrome 
 当内容层级明显、适合复习背诵时，可以使用 Mermaid 绘制思维导图。
 
 思维导图使用原则：
-- 不是每一节都强行画图，但只要内容存在明显层级、阶段划分、事件链条或知识点归类，就应补一张思维导图。
-- 对党史、中特、时政理论、会议精神、制度体系等内容，原则上优先提供思维导图。
-- 思维导图应服务于复习，不做花哨装饰，节点名称尽量简洁，突出主干和重点。
-
-示例：
-
-```mermaid
-mindmap
-  root((公考政治理论))
-    新时代中国特色社会主义思想
-      核心要义
-      基本方略
-      实践要求
-    时政热点
-      重要会议
-      政策文件
-      民生治理
-    党史知识
-      历史节点
-      重大事件
-      经验启示
-```
-
-## 默认输出模板
-
-```markdown
-# [视频主题] 公考政治理论学习笔记
-
-> note：本视频主要围绕[主题]展开，适合用于复习[相关模块]。学习重点应放在[核心考点]、[时间节点]和[事件链条]上。
-
-![首页配图](图片地址或本地路径)
-
-## 一、核心观点
-
-> note：本节用于快速把握视频主旨。
-
-[用正式学习笔记语言概括核心观点]
-
-## 二、时间线梳理
-
-| 时间 | 事件 | 主要内容 | 公考记忆点 |
-|---|---|---|---|
-|  |  |  |  |
-
-## 三、事件链条
-
-> note：本节重点呈现事件之间的先后关系和因果关系。
-
-事件1 -> 事件2 -> 事件3 -> 理论形成/政策落地 -> 现实意义
-
-## 四、分主题学习笔记
-
-### 1. [标题]
-
-> note：[这一部分对应的考点、易错点或考试价值]
-
-[内容展开]
-
-### 2. [标题]
-
-> note：[这一部分对应的考点、易错点或考试价值]
-
-[内容展开]
-
-## 五、公考知识点补充
-
-| 知识点 | 解释 | 常见考法 | 易错提醒 |
-|---|---|---|---|
-|  |  |  |  |
-
-## 六、思维导图
-
-```mermaid
-mindmap
-  root(([视频主题]))
-    核心观点
-    时间线
-    事件链
-    高频考点
-```
-
-## 七、复习提示
-
-- 重点记忆：
-- 易混概念：
-- 可能题型：
-- 需要核验或补充的内容：
-```
+- 不是每一节都强行画图，但只要内容存在明显层级、阶段划分、事件链条或知识点归类，就应补一张思维导图
+- 对党史、中特、时政理论、会议精神、制度体系等内容，原则上优先提供思维导图
+- 思维导图应服务于复习，不做花哨装饰，节点名称尽量简洁，突出主干和重点
 
 ## 写作风格
 
-- 语言要像公考政治理论学习资料，正式、清晰、适合复习。
-- 默认采用“老师讲课、带学生梳理知识”的口吻叙述。语言应有引导性和讲解感，例如“这里我们要注意”“这一点在考试中很容易命题”“同学们可以这样理解”，但不要过度口语化。
-- 不要写成机械摘要，也不要保留大量视频口语。
-- 对重要政治理论表述要谨慎，不随意改写规范提法。
-- 对时间、会议、文件、人物、政策名称要尽量准确。
-- 不能确认的事实应标注“待核验”。
+- 语言要像公考政治理论学习资料，正式、清晰、适合复习
+- 默认采用“老师讲课、带学生梳理知识”的口吻叙述。语言应有引导性和讲解感，例如“这里我们要注意”“这一点在考试中很容易命题”“同学们可以这样理解”，但不要过度口语化
+- 不要写成机械摘要，也不要保留大量视频口语
+- 对重要政治理论表述要谨慎，不随意改写规范提法
+- 对时间、会议、文件、人物、政策名称要尽量准确
+- 不能确认的事实应标注“待核验”
 
 ## 重点格式
 
@@ -298,13 +222,13 @@ mindmap
 - 如果生成 Word、PPT 或富文本版本，也应保持“重点更醒目”的原则，可用加粗、颜色、下划线或横线分隔实现
 
 格式使用原则：
-- 不要通篇大量上色，避免页面杂乱；只突出真正高频、易错、结论性内容。
-- 同一份材料中，强调样式尽量统一。例如红色主要用于“重点/高频考点”，加粗主要用于“结论/定义”，横线主要用于“模块分隔”。
-- 如果平台不支持颜色显示，至少保留加粗和横线分隔。
+- 不要通篇大量上色，避免页面杂乱；只突出真正高频、易错、结论性内容
+- 同一份材料中，强调样式尽量统一。例如红色主要用于“重点/高频考点”，加粗主要用于“结论/定义”，横线主要用于“模块分隔”
+- 如果平台不支持颜色显示，至少保留加粗和横线分隔
 
 ## 依赖补充
 
-处理 B站登录 cookies 时，额外建议安装：
+处理 B站登录 cookies 时，建议安装：
 
 ```bash
 pip install browser-cookie3
@@ -315,6 +239,24 @@ pip install browser-cookie3
 ```bash
 pip install yt-dlp
 ```
+
+本地 Whisper 推荐依赖：
+
+```bash
+pip install faster-whisper av
+```
+
+远程 Whisper API 推荐依赖：
+
+```bash
+pip install openai
+```
+
+## 安全要求
+
+- 不要把 API key 写入 `SKILL.md`、脚本源码或仓库文件
+- 远程转写密钥必须通过环境变量或用户临时输入传入
+- 如果用户在对话里直接贴出明文密钥，应提醒其尽快更换或撤销，并且后续不要再次原样回显
 
 ## 保存要求
 
