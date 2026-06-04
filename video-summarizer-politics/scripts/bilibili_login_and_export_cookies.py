@@ -7,14 +7,39 @@ then export the current Bilibili cookies into a Netscape cookies.txt file.
 from __future__ import annotations
 
 import argparse
+import os
+import subprocess
 import sys
 import time
-import webbrowser
 from http.cookiejar import CookieJar
 from pathlib import Path
 
 
 LOGIN_URL = "https://passport.bilibili.com/login"
+
+
+def resolve_browser_command(browser: str) -> list[str] | None:
+    browser = browser.lower()
+
+    if browser == "chrome":
+        candidates = [
+            Path(r"C:\Program Files\Google\Chrome\Application\chrome.exe"),
+            Path(r"C:\Program Files (x86)\Google\Chrome\Application\chrome.exe"),
+            Path(os.environ.get("LOCALAPPDATA", "")) / r"Google\Chrome\Application\chrome.exe",
+        ]
+    elif browser == "edge":
+        candidates = [
+            Path(r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe"),
+            Path(r"C:\Program Files\Microsoft\Edge\Application\msedge.exe"),
+            Path(os.environ.get("LOCALAPPDATA", "")) / r"Microsoft\Edge\Application\msedge.exe",
+        ]
+    else:
+        return None
+
+    for path in candidates:
+        if path.exists():
+            return [str(path)]
+    return None
 
 
 def load_cookiejar(browser: str) -> CookieJar:
@@ -33,8 +58,16 @@ def load_cookiejar(browser: str) -> CookieJar:
     raise RuntimeError(f"Unsupported browser: {browser}")
 
 
-def open_login_page() -> None:
-    webbrowser.open(LOGIN_URL, new=2)
+def open_login_page(browser: str) -> None:
+    command = resolve_browser_command(browser)
+    if command:
+        subprocess.Popen(command + [LOGIN_URL])
+        return
+
+    raise RuntimeError(
+        f"Could not find a local {browser} executable. "
+        f"Please install it or switch to another supported browser."
+    )
 
 
 def has_session_cookie(cookiejar: CookieJar) -> bool:
@@ -116,8 +149,8 @@ def main() -> int:
     )
     args = parser.parse_args()
 
-    print(f"Opening Bilibili login page in {args.browser}...")
-    open_login_page()
+    print(f"Opening Bilibili login page in local {args.browser}...")
+    open_login_page(args.browser)
     print("Please finish login in the browser window. Waiting for cookies...")
 
     cookiejar = wait_for_login(args.browser, args.timeout, args.interval)
